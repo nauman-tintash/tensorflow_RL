@@ -32,7 +32,7 @@ class DQNAgent:
         self.train_start = 50000
         self.update_target_rate = 10000
         self.discount_factor = 0.99
-        self.memory = deque(maxlen=400000)
+        self.memory = deque(maxlen=60000)
         self.no_op_steps = 30
         # build model
         self.model = self.build_model()
