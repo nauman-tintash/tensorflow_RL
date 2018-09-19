@@ -48,17 +48,25 @@ def choose_action(probability):
         return 3
 
 def discount_with_rewards(episode_rewards, gamma):
+    # discounted_rewards = np.zeros_like(episode_rewards)
+    # for t in range(len(episode_rewards)):
+    #     discounted_reward_sum = 0
+    #     discount = 1
+    #     for k in range(t, len(episode_rewards)):
+    #         discounted_reward_sum += episode_rewards[k] * discount
+    #         discount *= gamma
+    #         if episode_rewards[k] != 0:
+    #             # Don't count rewards from subsequent rounds
+    #             break
+    #     discounted_rewards[t] = discounted_reward_sum
+
     discounted_rewards = np.zeros_like(episode_rewards)
-    for t in range(len(episode_rewards)):
-        discounted_reward_sum = 0
-        discount = 1
-        for k in range(t, len(episode_rewards)):
-            discounted_reward_sum += episode_rewards[k] * discount
-            discount *= gamma
-            if episode_rewards[k] != 0:
-                # Don't count rewards from subsequent rounds
-                break
-        discounted_rewards[t] = discounted_reward_sum
+    running_add = 0
+    for t in reversed(range(0, len(episode_rewards))):
+        if episode_rewards[t] != 0:
+            running_add = 0 # reset the sum, since this was a game boundary (pong specific!)
+        running_add = running_add * gamma + episode_rewards[t]
+        discounted_rewards[t] = running_add
 
     discounted_rewards -= np.mean(discounted_rewards)
     discounted_rewards /= np.std(discounted_rewards)
@@ -69,24 +77,16 @@ def discount_with_rewards(episode_rewards, gamma):
 def main():
     num_hidden_layer_neurons = 200
     learning_rate = 0.0005
-    batch_size = 1
-    checkpoint_every_n_episodes = 10
+    checkpoint_every_n_episodes = 100
     resume = True
     gamma = 0.99 # discount factor for reward
-    render = False
+    render = True
     
     env = gym.make("Pong-v0")
     observation = env.reset() # This gets us the image
 
-    # hyperparameters
     episode_number = 0
-    # 
-    
     input_dimensions = 80 * 80
-    
-
-    # resume = True # resume from previous checkpoint?
-    
 
     reward_sum = 0
     running_reward = None
@@ -128,22 +128,21 @@ def main():
 
     checkpoint_file = os.path.join('checkpoints','policy_network.ckpt')
     saver = tf.train.Saver()
-    # saver.restore(session, checkpoint_file)
+
+    if resume:
+        saver.restore(session, checkpoint_file)
 
     while True:
         if render :
-            # time.sleep(0.05)
+            time.sleep(0.03)
             env.render()
             
         processed_observations, prev_processed_observations = preprocess_observations(observation, prev_processed_observations, input_dimensions)
-        # hidden_layer_values, up_probability = apply_neural_nets(processed_observations, weights)
 
         up_probability = session.run(
             output_layer,
             feed_dict={observation_placeholder: processed_observations.reshape([1, -1])}) #Review later-------------------------------------------------------------
     
-        # episode_hidden_layer_values.append(hidden_layer_values)
-
         action = choose_action(up_probability)
 
         # carry out the chosen action
@@ -167,10 +166,8 @@ def main():
         if done: 
             episode_number += 1
             
-            # if episode_number % batch_size == 0:
             discounted_reward = discount_with_rewards(episode_rewards, gamma)
-            # update_weights(weights, expectation_g_squared, g_dict, decay_rate, learning_rate)
-
+            
             states_stack = np.vstack(episode_observations)
             actions_stack = np.vstack(episode_actions)
             rewards_stack = np.vstack(discounted_reward)
@@ -197,7 +194,7 @@ def main():
             prev_processed_observations = None
 
             
-            if episode_number % 100 == 0:
+            if episode_number % checkpoint_every_n_episodes == 0:
                 saver.save(session, checkpoint_file)
                 print('-------------------------SAVED-------------------------------')
 
